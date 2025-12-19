@@ -1,21 +1,15 @@
 package com.example.ticketero.service;
 
-import com.example.ticketero.model.dto.DashboardResponse;
-import com.example.ticketero.model.dto.QueueStatusResponse;
 import com.example.ticketero.model.entity.Advisor;
 import com.example.ticketero.model.entity.Ticket;
 import com.example.ticketero.model.enums.AdvisorStatus;
-import com.example.ticketero.model.enums.QueueType;
 import com.example.ticketero.model.enums.TicketStatus;
 import com.example.ticketero.repository.AdvisorRepository;
-import com.example.ticketero.repository.TicketRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -26,149 +20,70 @@ import java.util.Optional;
 public class AdvisorService {
 
     private final AdvisorRepository advisorRepository;
-    private final TicketRepository ticketRepository;
-    private final NotificationService notificationService;
+
+    public List<Advisor> findAvailableAdvisors() {
+        return advisorRepository.findByStatus(AdvisorStatus.AVAILABLE);
+    }
+
+    public Optional<Advisor> findAvailableAdvisorWithLeastLoad() {
+        return advisorRepository.findAvailableAdvisorWithLeastLoad();
+    }
 
     @Transactional
-    public Optional<Ticket> assignNextTicket() {
-        // Buscar asesor disponible
-        Optional<Advisor> availableAdvisor = advisorRepository.findAvailableAdvisorWithLeastLoad();
+    public boolean assignTicketToAdvisor(Ticket ticket) {
+        Optional<Advisor> advisorOpt = findAvailableAdvisorWithLeastLoad();
         
-        if (availableAdvisor.isEmpty()) {
-            log.debug("No available advisors found");
-            return Optional.empty();
+        if (advisorOpt.isEmpty()) {
+            log.warn("No available advisors to assign ticket: {}", ticket.getNumero());
+            return false;
         }
 
-        // Buscar próximo ticket en espera (por prioridad de cola)
-        Optional<Ticket> nextTicket = findNextTicketToAssign();
+        Advisor advisor = advisorOpt.get();
         
-        if (nextTicket.isEmpty()) {
-            log.debug("No tickets waiting for assignment");
-            return Optional.empty();
-        }
-
-        Advisor advisor = availableAdvisor.get();
-        Ticket ticket = nextTicket.get();
-
-        // Asignar ticket
-        ticket.setAssignedAdvisorId(advisor.getId());
+        // Asignar ticket al asesor
+        ticket.setAssignedAdvisor(advisor);
         ticket.setAssignedModuleNumber(advisor.getModuleNumber());
         ticket.setStatus(TicketStatus.ATENDIENDO);
-
+        
         // Actualizar contador del asesor
         advisor.setAssignedTicketsCount(advisor.getAssignedTicketsCount() + 1);
-        if (advisor.getAssignedTicketsCount() >= 1) {
+        
+        // Cambiar estado del asesor si alcanza el límite
+        if (advisor.getAssignedTicketsCount() >= 3) {
             advisor.setStatus(AdvisorStatus.BUSY);
         }
-
-        log.info("Assigned ticket {} to advisor {} (module {})", 
+        
+        advisorRepository.save(advisor);
+        
+        log.info("Ticket {} assigned to advisor {} at module {}", 
                 ticket.getNumero(), advisor.getName(), advisor.getModuleNumber());
-
-        // Programar notificación "es tu turno"
-        notificationService.scheduleEsTuTurnoNotification(ticket);
-
-        return Optional.of(ticket);
-    }
-
-    private Optional<Ticket> findNextTicketToAssign() {
-        // Buscar por prioridad de cola (CAJA tiene prioridad 1, más alta)
-        for (QueueType queueType : QueueType.values()) {
-            List<Ticket> tickets = ticketRepository.findByQueueTypeAndStatusOrderByCreatedAtAsc(
-                    queueType, TicketStatus.PROXIMO);
-            
-            if (!tickets.isEmpty()) {
-                return Optional.of(tickets.get(0));
-            }
-        }
-
-        // Si no hay tickets PROXIMO, buscar EN_ESPERA
-        for (QueueType queueType : QueueType.values()) {
-            List<Ticket> tickets = ticketRepository.findByQueueTypeAndStatusOrderByCreatedAtAsc(
-                    queueType, TicketStatus.EN_ESPERA);
-            
-            if (!tickets.isEmpty()) {
-                return Optional.of(tickets.get(0));
-            }
-        }
-
-        return Optional.empty();
+        
+        return true;
     }
 
     @Transactional
-    public void completeTicket(Long ticketId) {
-        Ticket ticket = ticketRepository.findById(ticketId)
-                .orElseThrow(() -> new RuntimeException("Ticket not found: " + ticketId));
-
-        if (ticket.getAssignedAdvisorId() != null) {
-            Advisor advisor = advisorRepository.findById(ticket.getAssignedAdvisorId())
-                    .orElseThrow(() -> new RuntimeException("Advisor not found"));
-
-            // Liberar asesor
-            advisor.setAssignedTicketsCount(Math.max(0, advisor.getAssignedTicketsCount() - 1));
-            if (advisor.getAssignedTicketsCount() == 0) {
-                advisor.setStatus(AdvisorStatus.AVAILABLE);
-            }
+    public void completeTicketAssignment(Ticket ticket) {
+        if (ticket.getAssignedAdvisor() == null) {
+            return;
         }
 
-        ticket.setStatus(TicketStatus.COMPLETADO);
-        log.info("Completed ticket: {}", ticket.getNumero());
-    }
-
-    public DashboardResponse getDashboardMetrics() {
-        LocalDateTime startOfDay = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0);
+        Advisor advisor = ticket.getAssignedAdvisor();
         
-        int totalToday = (int) ticketRepository.countByCreatedAtAfter(startOfDay);
-        int inQueue = (int) ticketRepository.countByStatusIn(List.of(TicketStatus.EN_ESPERA, TicketStatus.PROXIMO));
-        int beingAttended = (int) ticketRepository.countByStatusIn(List.of(TicketStatus.ATENDIENDO));
-        int completed = (int) ticketRepository.countByStatusIn(List.of(TicketStatus.COMPLETADO));
-
-        List<QueueStatusResponse> queueStatus = Arrays.stream(QueueType.values())
-                .map(this::buildQueueStatus)
-                .toList();
-
-        List<DashboardResponse.AdvisorStatusResponse> advisorStatus = advisorRepository.findAll()
-                .stream()
-                .map(advisor -> new DashboardResponse.AdvisorStatusResponse(
-                        advisor.getId(),
-                        advisor.getName(),
-                        advisor.getStatus().name(),
-                        advisor.getModuleNumber(),
-                        advisor.getAssignedTicketsCount()
-                ))
-                .toList();
-
-        return new DashboardResponse(
-                totalToday,
-                inQueue,
-                beingAttended,
-                completed,
-                queueStatus,
-                advisorStatus
-        );
-    }
-
-    private QueueStatusResponse buildQueueStatus(QueueType queueType) {
-        List<TicketStatus> activeStatuses = TicketStatus.getActiveStatuses();
-        int totalInQueue = (int) ticketRepository.countByQueueTypeAndStatuses(queueType, activeStatuses);
+        // Decrementar contador
+        advisor.setAssignedTicketsCount(Math.max(0, advisor.getAssignedTicketsCount() - 1));
         
-        return new QueueStatusResponse(
-                queueType.name(),
-                queueType.getDisplayName(),
-                totalInQueue,
-                queueType.getAvgTimeMinutes(),
-                getNextTicketNumber(queueType)
-        );
-    }
-
-    private Integer getNextTicketNumber(QueueType queueType) {
-        List<Ticket> nextTickets = ticketRepository.findByQueueTypeAndStatusOrderByCreatedAtAsc(
-                queueType, TicketStatus.PROXIMO);
-        
-        if (!nextTickets.isEmpty()) {
-            String numero = nextTickets.get(0).getNumero();
-            return Integer.parseInt(numero.substring(1)); // Remove prefix
+        // Cambiar estado a disponible si tiene capacidad
+        if (advisor.getAssignedTicketsCount() < 3 && advisor.getStatus() == AdvisorStatus.BUSY) {
+            advisor.setStatus(AdvisorStatus.AVAILABLE);
         }
         
-        return null;
+        advisorRepository.save(advisor);
+        
+        log.info("Completed assignment for advisor {} (current load: {})", 
+                advisor.getName(), advisor.getAssignedTicketsCount());
+    }
+
+    public long countByStatus(AdvisorStatus status) {
+        return advisorRepository.countByStatus(status);
     }
 }

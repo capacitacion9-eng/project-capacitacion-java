@@ -22,35 +22,30 @@ public class TicketController {
 
     @PostMapping
     public ResponseEntity<TicketResponse> createTicket(
-            @Valid @RequestBody TicketCreateRequest request
-    ) {
+            @Valid @RequestBody TicketCreateRequest request) {
+        
         log.info("Creating ticket for nationalId: {}, queueType: {}", 
                 request.nationalId(), request.queueType());
         
-        TicketResponse response = ticketService.createTicket(request);
+        TicketResponse response = ticketService.create(request);
         
-        log.info("Ticket created successfully: {}", response.numero());
         return ResponseEntity.status(201).body(response);
     }
 
     @GetMapping("/{numero}/position")
-    public ResponseEntity<QueuePositionResponse> getQueuePosition(
-            @PathVariable String numero
-    ) {
-        log.info("Getting queue position for ticket: {}", numero);
+    public ResponseEntity<QueuePositionResponse> getPosition(@PathVariable String numero) {
+        log.info("Getting position for ticket: {}", numero);
         
-        return ticketService.getQueuePosition(numero)
+        return ticketService.getPosition(numero)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @GetMapping("/reference/{codigoReferencia}")
-    public ResponseEntity<TicketResponse> getByCodigoReferencia(
-            @PathVariable UUID codigoReferencia
-    ) {
-        log.info("Getting ticket by reference code: {}", codigoReferencia);
+    @GetMapping("/reference/{uuid}")
+    public ResponseEntity<TicketResponse> getByReference(@PathVariable UUID uuid) {
+        log.info("Getting ticket by reference: {}", uuid);
         
-        return ticketService.findByCodigoReferencia(codigoReferencia)
+        return ticketService.findByReference(uuid)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }

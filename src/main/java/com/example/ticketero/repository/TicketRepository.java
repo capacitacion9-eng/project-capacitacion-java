@@ -21,13 +21,18 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
     
     Optional<Ticket> findByCodigoReferencia(UUID codigoReferencia);
     
-    List<Ticket> findByNationalIdAndStatusIn(String nationalId, List<TicketStatus> statuses);
+    List<Ticket> findByStatusIn(List<TicketStatus> statuses);
     
-    List<Ticket> findByQueueTypeAndStatusOrderByCreatedAtAsc(QueueType queueType, TicketStatus status);
+    List<Ticket> findByQueueTypeAndStatusInOrderByCreatedAtAsc(
+        QueueType queueType, 
+        List<TicketStatus> statuses
+    );
     
     long countByStatusIn(List<TicketStatus> statuses);
     
     long countByCreatedAtAfter(LocalDateTime date);
+    
+    long countByStatus(TicketStatus status);
 
     // Queries custom
     @Query("""
@@ -36,7 +41,7 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
         AND t.status IN :statuses 
         ORDER BY t.createdAt ASC
         """)
-    List<Ticket> findByQueueTypeAndStatusesOrderByCreated(
+    List<Ticket> findActiveTicketsByQueue(
         @Param("queueType") QueueType queueType,
         @Param("statuses") List<TicketStatus> statuses
     );
@@ -44,10 +49,12 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
     @Query("""
         SELECT COUNT(t) FROM Ticket t 
         WHERE t.queueType = :queueType 
-        AND t.status IN :statuses
+        AND t.status IN :statuses 
+        AND t.createdAt < :createdBefore
         """)
-    long countByQueueTypeAndStatuses(
+    long countTicketsAheadInQueue(
         @Param("queueType") QueueType queueType,
-        @Param("statuses") List<TicketStatus> statuses
+        @Param("statuses") List<TicketStatus> statuses,
+        @Param("createdBefore") LocalDateTime createdBefore
     );
 }

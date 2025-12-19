@@ -50,8 +50,10 @@ public class Ticket {
     @Column(name = "estimated_wait_minutes", nullable = false)
     private Integer estimatedWaitMinutes;
 
-    @Column(name = "assigned_advisor_id")
-    private Long assignedAdvisorId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_advisor_id")
+    @ToString.Exclude
+    private Advisor assignedAdvisor;
 
     @Column(name = "assigned_module_number")
     private Integer assignedModuleNumber;
@@ -59,7 +61,7 @@ public class Ticket {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "updated_at")
+    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     @PrePersist
@@ -68,6 +70,9 @@ public class Ticket {
         this.updatedAt = LocalDateTime.now();
         if (this.codigoReferencia == null) {
             this.codigoReferencia = UUID.randomUUID();
+        }
+        if (this.status == null) {
+            this.status = TicketStatus.EN_ESPERA;
         }
     }
 

@@ -5,6 +5,8 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "advisor")
@@ -33,12 +35,17 @@ public class Advisor {
     private Integer moduleNumber;
 
     @Column(name = "assigned_tickets_count", nullable = false)
-    private Integer assignedTicketsCount = 0;
+    private Integer assignedTicketsCount;
+
+    @OneToMany(mappedBy = "assignedAdvisor", fetch = FetchType.LAZY)
+    @ToString.Exclude
+    @Builder.Default
+    private List<Ticket> assignedTickets = new ArrayList<>();
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "updated_at")
+    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     @PrePersist
@@ -47,6 +54,9 @@ public class Advisor {
         this.updatedAt = LocalDateTime.now();
         if (this.status == null) {
             this.status = AdvisorStatus.AVAILABLE;
+        }
+        if (this.assignedTicketsCount == null) {
+            this.assignedTicketsCount = 0;
         }
     }
 

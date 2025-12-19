@@ -15,9 +15,9 @@ public interface AdvisorRepository extends JpaRepository<Advisor, Long> {
     // Query derivadas
     List<Advisor> findByStatus(AdvisorStatus status);
     
-    Optional<Advisor> findByModuleNumber(Integer moduleNumber);
+    long countByStatus(AdvisorStatus status);
     
-    List<Advisor> findByStatusOrderByAssignedTicketsCountAsc(AdvisorStatus status);
+    Optional<Advisor> findByEmail(String email);
 
     // Query para encontrar asesor disponible con menos carga
     @Query("""
@@ -26,4 +26,12 @@ public interface AdvisorRepository extends JpaRepository<Advisor, Long> {
         ORDER BY a.assignedTicketsCount ASC, a.id ASC
         """)
     Optional<Advisor> findAvailableAdvisorWithLeastLoad();
+
+    // Query para asesores disponibles ordenados por carga
+    @Query("""
+        SELECT a FROM Advisor a 
+        WHERE a.status = 'AVAILABLE' 
+        ORDER BY a.assignedTicketsCount ASC
+        """)
+    List<Advisor> findAvailableAdvisorsOrderByLoad();
 }

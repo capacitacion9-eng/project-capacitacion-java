@@ -4,9 +4,9 @@ package com.example.ticketero.model.enums;
  * Estados posibles de un asesor
  */
 public enum AdvisorStatus {
-    AVAILABLE,  // Disponible para atender
-    BUSY,       // Atendiendo un cliente
-    OFFLINE;    // No disponible (almuerzo, capacitación, etc.)
+    AVAILABLE,
+    BUSY,
+    OFFLINE;
 
     /**
      * Verifica si el asesor puede recibir asignaciones

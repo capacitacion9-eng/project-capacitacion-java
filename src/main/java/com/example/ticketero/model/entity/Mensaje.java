@@ -19,15 +19,18 @@ public class Mensaje {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "ticket_id", nullable = false)
-    private Long ticketId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "ticket_id", nullable = false)
+    @ToString.Exclude
+    private Ticket ticket;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 50)
     private MessageTemplate plantilla;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "estado_envio", nullable = false, length = 20)
-    private String estadoEnvio = "PENDIENTE";
+    private EstadoEnvio estadoEnvio;
 
     @Column(name = "fecha_programada", nullable = false)
     private LocalDateTime fechaProgramada;
@@ -39,7 +42,7 @@ public class Mensaje {
     private String telegramMessageId;
 
     @Column(nullable = false)
-    private Integer intentos = 0;
+    private Integer intentos;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -47,5 +50,17 @@ public class Mensaje {
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
+        if (this.estadoEnvio == null) {
+            this.estadoEnvio = EstadoEnvio.PENDIENTE;
+        }
+        if (this.intentos == null) {
+            this.intentos = 0;
+        }
+    }
+
+    public enum EstadoEnvio {
+        PENDIENTE,
+        ENVIADO,
+        FALLIDO
     }
 }

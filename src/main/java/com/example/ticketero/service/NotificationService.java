@@ -21,61 +21,67 @@ public class NotificationService {
 
     @Transactional
     public void scheduleTicketCreatedNotification(Ticket ticket) {
-        if (ticket.getTelefono() == null || ticket.getTelefono().isEmpty()) {
-            log.info("No phone number for ticket {}, skipping notification", ticket.getNumero());
-            return;
-        }
-
         Mensaje mensaje = Mensaje.builder()
-                .ticketId(ticket.getId())
-                .plantilla(MessageTemplate.TOTEM_TICKET_CREADO)
-                .estadoEnvio("PENDIENTE")
-                .fechaProgramada(LocalDateTime.now().plusMinutes(1))
-                .build();
+            .ticket(ticket)
+            .plantilla(MessageTemplate.TOTEM_TICKET_CREADO)
+            .fechaProgramada(LocalDateTime.now().plusMinutes(1))
+            .build();
 
         mensajeRepository.save(mensaje);
+        
         log.info("Scheduled ticket created notification for ticket: {}", ticket.getNumero());
     }
 
     @Transactional
     public void scheduleProximoTurnoNotification(Ticket ticket) {
-        if (ticket.getTelefono() == null || ticket.getTelefono().isEmpty()) {
-            return;
-        }
-
-        // Verificar que no existe ya este tipo de mensaje
-        boolean exists = mensajeRepository.existsByTicketIdAndPlantilla(
-                ticket.getId(), MessageTemplate.TOTEM_PROXIMO_TURNO);
-        
-        if (exists) {
+        // Solo programar si el ticket tiene teléfono
+        if (ticket.getTelefono() == null || ticket.getTelefono().isBlank()) {
+            log.debug("Skipping próximo turno notification - no phone number for ticket: {}", 
+                     ticket.getNumero());
             return;
         }
 
         Mensaje mensaje = Mensaje.builder()
-                .ticketId(ticket.getId())
-                .plantilla(MessageTemplate.TOTEM_PROXIMO_TURNO)
-                .estadoEnvio("PENDIENTE")
-                .fechaProgramada(LocalDateTime.now().plusMinutes(2))
-                .build();
+            .ticket(ticket)
+            .plantilla(MessageTemplate.TOTEM_PROXIMO_TURNO)
+            .fechaProgramada(LocalDateTime.now().plusMinutes(2))
+            .build();
 
         mensajeRepository.save(mensaje);
-        log.info("Scheduled proximo turno notification for ticket: {}", ticket.getNumero());
+        
+        log.info("Scheduled próximo turno notification for ticket: {}", ticket.getNumero());
     }
 
     @Transactional
     public void scheduleEsTuTurnoNotification(Ticket ticket) {
-        if (ticket.getTelefono() == null || ticket.getTelefono().isEmpty()) {
+        // Solo programar si el ticket tiene teléfono
+        if (ticket.getTelefono() == null || ticket.getTelefono().isBlank()) {
+            log.debug("Skipping es tu turno notification - no phone number for ticket: {}", 
+                     ticket.getNumero());
             return;
         }
 
         Mensaje mensaje = Mensaje.builder()
-                .ticketId(ticket.getId())
-                .plantilla(MessageTemplate.TOTEM_ES_TU_TURNO)
-                .estadoEnvio("PENDIENTE")
-                .fechaProgramada(LocalDateTime.now())
-                .build();
+            .ticket(ticket)
+            .plantilla(MessageTemplate.TOTEM_ES_TU_TURNO)
+            .fechaProgramada(LocalDateTime.now())
+            .build();
 
         mensajeRepository.save(mensaje);
+        
         log.info("Scheduled es tu turno notification for ticket: {}", ticket.getNumero());
+    }
+
+    @Transactional
+    public void cancelPendingNotifications(Ticket ticket) {
+        mensajeRepository.findByTicketId(ticket.getId())
+            .stream()
+            .filter(mensaje -> mensaje.getEstadoEnvio() == Mensaje.EstadoEnvio.PENDIENTE)
+            .forEach(mensaje -> {
+                mensaje.setEstadoEnvio(Mensaje.EstadoEnvio.FALLIDO);
+                mensajeRepository.save(mensaje);
+            });
+        
+        log.info("Cancelled pending notifications for ticket: {}", ticket.getNumero());
     }
 }

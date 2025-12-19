@@ -1,7 +1,7 @@
 package com.example.ticketero.repository;
 
 import com.example.ticketero.model.entity.Mensaje;
-import com.example.ticketero.model.enums.MessageTemplate;
+import com.example.ticketero.model.entity.Mensaje.EstadoEnvio;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -14,13 +14,11 @@ import java.util.List;
 public interface MensajeRepository extends JpaRepository<Mensaje, Long> {
 
     // Query derivadas
-    List<Mensaje> findByEstadoEnvioAndFechaProgramadaBefore(String estadoEnvio, LocalDateTime fecha);
+    List<Mensaje> findByEstadoEnvio(EstadoEnvio estadoEnvio);
     
     List<Mensaje> findByTicketId(Long ticketId);
-    
-    boolean existsByTicketIdAndPlantilla(Long ticketId, MessageTemplate plantilla);
 
-    // Query para el scheduler
+    // Query para scheduler - mensajes pendientes listos para enviar
     @Query("""
         SELECT m FROM Mensaje m 
         WHERE m.estadoEnvio = 'PENDIENTE' 
@@ -28,5 +26,15 @@ public interface MensajeRepository extends JpaRepository<Mensaje, Long> {
         AND m.intentos < 3
         ORDER BY m.fechaProgramada ASC
         """)
-    List<Mensaje> findPendingMessages(@Param("now") LocalDateTime now);
+    List<Mensaje> findPendingMessagesReadyToSend(@Param("now") LocalDateTime now);
+
+    // Query para mensajes fallidos que pueden reintentarse
+    @Query("""
+        SELECT m FROM Mensaje m 
+        WHERE m.estadoEnvio = 'FALLIDO' 
+        AND m.intentos < 3 
+        AND m.fechaProgramada <= :now
+        ORDER BY m.fechaProgramada ASC
+        """)
+    List<Mensaje> findFailedMessagesForRetry(@Param("now") LocalDateTime now);
 }
