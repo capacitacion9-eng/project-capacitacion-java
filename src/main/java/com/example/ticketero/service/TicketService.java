@@ -41,10 +41,11 @@ public class TicketService {
         String numero = generateTicketNumber(request.queueType());
         
         // Calcular posición en cola
-        long ticketsAhead = ticketRepository.countByQueueTypeAndStatusInOrderByCreatedAtAsc(
+        long ticketsAhead = ticketRepository.countTicketsAheadInQueue(
             request.queueType(), 
-            TicketStatus.getActiveStatuses()
-        ).size();
+            TicketStatus.getActiveStatuses(),
+            LocalDateTime.now()
+        );
         
         int position = (int) ticketsAhead + 1;
         int estimatedWait = request.queueType().getAvgTimeMinutes() * position;

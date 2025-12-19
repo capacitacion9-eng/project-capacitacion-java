@@ -85,9 +85,9 @@ public class AdminController {
         // Promedio simple basado en tipos de cola
         double totalEstimatedTime = Arrays.stream(QueueType.values())
             .mapToDouble(queueType -> {
-                long queueTickets = ticketRepository.countByQueueTypeAndStatusInOrderByCreatedAtAsc(
-                    queueType, activeStatuses
-                ).size();
+                long queueTickets = ticketRepository.countTicketsAheadInQueue(
+                    queueType, activeStatuses, LocalDateTime.now()
+                );
                 return queueTickets * queueType.getAvgTimeMinutes();
             })
             .sum();
@@ -97,9 +97,9 @@ public class AdminController {
 
     private QueueStatusResponse buildQueueStatus(QueueType queueType) {
         List<TicketStatus> activeStatuses = TicketStatus.getActiveStatuses();
-        int ticketsInQueue = ticketRepository.countByQueueTypeAndStatusInOrderByCreatedAtAsc(
-            queueType, activeStatuses
-        ).size();
+        int ticketsInQueue = (int) ticketRepository.countTicketsAheadInQueue(
+            queueType, activeStatuses, LocalDateTime.now()
+        );
         
         // Próximo número (simplificado)
         int nextNumber = ticketsInQueue + 1;
